@@ -1,0 +1,137 @@
+---
+- name: Configure Jenkins and install plugins
+  hosts: jenkins
+  become: yes
+  tasks:
+
+    - name: Install required system packages for lxml
+      apt:
+        name: python3-lxml
+        state: present
+
+    - name: Set JAVA_HOME in /etc/environment
+      lineinfile:
+        path: /etc/environment
+        line: 'JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64'
+        state: present
+
+    - name: Get Jenkins initial admin password
+      slurp:
+        src: /var/lib/jenkins/secrets/initialAdminPassword
+      register: jenkins_initial_password
+
+    - name: Decode the initial admin password
+      set_fact:
+        initial_password: "{{ jenkins_initial_password['content'] | b64decode }}"
+
+    - name: Download Jenkins CLI JAR
+      get_url:
+        url: http://localhost:8080/jnlpJars/jenkins-cli.jar
+        dest: /tmp/jenkins-cli.jar
+
+    - name: Wait for Jenkins to fully start
+      pause:
+        seconds: 30
+
+    - name: Install Jenkins Plugins
+      command: >
+        java -jar /tmp/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ initial_password }} install-plugin git blueocean sonar email-ext
+
+    - name: Restart Jenkins to apply plugins
+      command: >
+        java -jar /tmp/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ initial_password }} safe-restart
+
+    - name: Wait for Jenkins to restart
+      pause:
+        seconds: 60
+
+    - name: Ensure Jenkins Groovy initialization directory exists
+      file:
+        path: /var/lib/jenkins/init.groovy.d
+        state: directory
+        mode: '0755'
+    
+    - name: Disable Jenkins setup wizard
+      copy:
+        dest: /var/lib/jenkins/init.groovy.d/configuration
+        content: |
+          # Disable the setup wizard
+          jenkins.install.InstallState.INITIAL_SETUP_COMPLETED = true
+      notify: Restart Jenkins
+
+    - name: Copy Groovy script for creating a new user and installing plugins
+      copy:
+        content: |
+          import jenkins.model.*
+          import hudson.security.*
+
+          // Set Jenkins instance
+          def instance = Jenkins.getInstance()
+
+          // 1. Create first-time user
+          def hudsonRealm = new HudsonPrivateSecurityRealm(false)
+          hudsonRealm.createAccount('admin', 'admin')  // Replace with desired username and password
+          instance.setSecurityRealm(hudsonRealm)
+
+          // Set admin permissions for the user
+          def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
+          strategy.setAllowAnonymousRead(false)  // Disable anonymous access
+          instance.setAuthorizationStrategy(strategy)
+          println("User 'new_admin_user' created successfully!")
+
+          // 2. Install suggested plugins
+          def pluginManager = instance.getPluginManager()
+          def updateCenter = instance.getUpdateCenter()
+
+          // List of suggested plugins (can be customized)
+          def plugins = [
+              'workflow-aggregator', // Pipeline plugin
+              'git',                 // Git plugin
+              'blueocean',           // Blue Ocean UI
+              'sonar',               // SonarQube plugin
+              'pipeline-utility-steps',
+              'email-ext'            // Email extension plugin
+          ]
+
+          plugins.each { pluginName ->
+              if (!pluginManager.getPlugin(pluginName)) {
+                  println("Installing plugin: ${pluginName}")
+                  def plugin = updateCenter.getPlugin(pluginName)
+                  if (plugin) {
+                      plugin.deploy()
+                  }
+              } else {
+                  println("Plugin ${pluginName} is already installed.")
+              }
+          }
+
+          // Save Jenkins instance to apply changes
+          instance.save()
+          println("Jenkins setup complete with new user and plugins.")
+
+        dest: /var/lib/jenkins/init.groovy.d/configure-jenkins.groovy
+        mode: '0755'
+
+    - name: Disable Jenkins setup wizard
+      copy:
+        content: "2.462.2"
+        dest: /var/lib/jenkins/jenkins.install.InstallUtil.lastExecVersion
+        mode: '0644'
+
+    - name: Restart Jenkins to apply user creation and plugin installation
+      systemd:
+        name: jenkins
+        state: restarted
+
+    - name: Ensure Jenkins install state is set to RUNNING
+      xml:
+        path: /var/lib/jenkins/config.xml
+        xpath: "/hudson/installState"
+        value: "RUNNING"
+      notify: Restart Jenkins
+
+  handlers:
+    - name: Restart Jenkins
+      systemd:
+        name: jenkins
+        state: restarted
