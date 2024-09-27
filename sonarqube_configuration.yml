@@ -2,13 +2,13 @@
 - hosts: sonarqube
   vars:
     sonarqube_port: 9000
-    sonarqube_default_password: "admin"  # Default password after SonarQube installation
-    sonarqube_new_password: "admin123"  # New password for the admin user
-    sonarqube_admin_login: "admin"  # Username for SonarQube admin
+    sonarqube_default_password: "admin"  
+    sonarqube_new_password: "admin123"  
+    sonarqube_admin_login: "admin"  
     sonarqube_project_key: "MyProject"
     sonarqube_project_name: "MyProject"
     sonarqube_token_name: "MyToken"
-    quality_gate_name: "Sonar way"  # Name of the quality gate
+    quality_gate_name: "Sonar way"  
     sonarqube_host_ip: "{{ ansible_host }}"
 
   tasks:
@@ -21,13 +21,12 @@
         connect_timeout: 15
         timeout: 30
 
-    # Step to change the default SonarQube admin password
     - name: Change the default SonarQube admin password
       ansible.builtin.uri:
         url: "http://localhost:{{ sonarqube_port }}/api/users/change_password"
         method: POST
         user: "{{ sonarqube_admin_login }}"
-        password: "{{ sonarqube_default_password }}"  # Default password
+        password: "{{ sonarqube_default_password }}"  
         force_basic_auth: yes
         body: "login={{ sonarqube_admin_login }}&previousPassword={{ sonarqube_default_password }}&password={{ sonarqube_new_password }}"
         headers:
@@ -39,12 +38,11 @@
       delay: 5
       no_log: true  
 
-    # Continue with project creation, token generation, etc.
     - name: Create a new project in SonarQube
       ansible.builtin.uri:
         url: "http://localhost:{{ sonarqube_port }}/api/projects/create?project={{ sonarqube_project_key }}&name={{ sonarqube_project_name | urlencode }}"
         user: "{{ sonarqube_admin_login }}"
-        password: "{{ sonarqube_new_password }}"  # New password after changing
+        password: "{{ sonarqube_new_password }}"  
         method: POST
         force_basic_auth: yes
       register: project_response
@@ -53,7 +51,7 @@
       ansible.builtin.uri:
         url: "http://localhost:{{ sonarqube_port }}/api/user_tokens/generate"
         user: "{{ sonarqube_admin_login }}"
-        password: "{{ sonarqube_new_password }}"  # Use the new password
+        password: "{{ sonarqube_new_password }}"  
         method: POST
         force_basic_auth: yes
         body: "name={{ sonarqube_token_name }}"
@@ -69,21 +67,21 @@
     - name: Fetch token file to local machine
       ansible.builtin.fetch:
         src: "/tmp/sonarqube_token.txt"
-        dest: "./"  # Local path on your Ansible machine
+        dest: "./"  
         flat: yes
 
     - name: Set the default quality gate
       ansible.builtin.uri:
         url: "http://localhost:{{ sonarqube_port }}/api/qualitygates/set_as_default"
         user: "{{ sonarqube_admin_login }}"
-        password: "{{ sonarqube_new_password }}"  # Use the new password
+        password: "{{ sonarqube_new_password }}"  
         method: POST
         force_basic_auth: yes
-        body: "name={{ quality_gate_name | urlencode }}"  # URL-encoded name of the quality gate
+        body: "name={{ quality_gate_name | urlencode }}"  
         headers:
           Content-Type: "application/x-www-form-urlencoded"
       register: quality_gate_response
-      failed_when: quality_gate_response.status not in [200, 204]  # Allow 204 as a valid response
+      failed_when: quality_gate_response.status not in [200, 204]  
 
     - name: Create webhook
       ansible.builtin.uri:
@@ -96,5 +94,5 @@
         headers:
           Content-Type: "application/x-www-form-urlencoded"
       register: webhook_response
-      ignore_errors: yes  # Ignore errors if the webhook creation fails
+      ignore_errors: yes  
 

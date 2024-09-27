@@ -126,15 +126,6 @@
     - name: Check job creation response
       debug:
         var: create_job_result
-    
-    # - name: Approve Jenkins script
-    #   command: >
-    #     java -jar /tmp/jenkins-cli.jar
-    #     -s http://{{ jenkins_host }}:8080
-    #     -auth {{ jenkins_user }}:{{ api_token }}
-    #     groovy = <(echo "new org.jenkinsci.plugins.scriptsecurity.scripts.ScriptApproval().approveSignature('{{ script_signature }}')")
-    #   register: approve_script_result
-    #   failed_when: approve_script_result.rc != 0
 
     - name: Trigger Jenkins Job
       uri:
@@ -143,5 +134,5 @@
         user: "{{ jenkins_user }}"
         password: "{{ api_token }}"
         force_basic_auth: yes
-        status_code: [201, 202]  # Handle both created and accepted responses
+        status_code: [201, 202]  
       register: trigger_job_result

@@ -1,17 +1,17 @@
 ---
 - name: Configure Sonar Scanner Path and set JAVA_HOME
   hosts: jenkins
-  become: true  # Ensure necessary privileges
+  become: true  
   vars:
-    jenkins_host: "http://{{ ansible_host }}:8080"  # Ensure this includes the protocol
-    jenkins_user: "admin"  # Jenkins user
-    sonar_name: "SonarQube"  # SonarQube server name
-    sonar_server_url: "http://{{ ansible_host }}:9000"  # SonarQube server URL
+    jenkins_host: "http://{{ ansible_host }}:8080"  
+    jenkins_user: "admin"  
+    sonar_name: "SonarQube"  
+    sonar_server_url: "http://{{ ansible_host }}:9000"  
 
   tasks:
     - name: Read Jenkins API token from api-token.txt
       ansible.builtin.slurp:
-        src: /tmp/api_token.txt  # Adjust this path as needed
+        src: /tmp/api_token.txt  
       register: api_token
 
     - name: Set Jenkins password from decoded token
@@ -20,7 +20,7 @@
 
     - name: Read SonarQube token from sonar_token.txt
       ansible.builtin.slurp:
-        src: /tmp/sonarqube_token.txt  # Adjust this path as needed
+        src: /tmp/sonarqube_token.txt  
       register: sonar_token
 
     - name: Set SonarQube auth token from decoded content
@@ -35,7 +35,7 @@
 
     - name: Get Jenkins Crumb
       uri:
-        url: "{{ jenkins_host }}/crumbIssuer/api/json"  # Corrected to use jenkins_host
+        url: "{{ jenkins_host }}/crumbIssuer/api/json"  
         method: GET
         user: "{{ jenkins_user }}"
         password: "{{ jenkins_password }}"
@@ -59,7 +59,7 @@
 
     - name: Read API token from file
       slurp:
-        src: /tmp/api_token.txt  # Update with the correct path
+        src: /tmp/api_token.txt  
       register: token_file
 
     - name: Set the API token variable
@@ -80,9 +80,9 @@
             </builders>
           </project>
         state: present
-        url: "http://{{ ansible_host }}:8080"  # Update with your Jenkins URL
-        user: "admin"                     # Replace with your Jenkins username
-        token: "{{ api_token }}"           # Use the variable for the token
+        url: "http://{{ ansible_host }}:8080"  
+        user: "admin"                     
+        token: "{{ api_token }}"           
       register: result
 
     - debug:
