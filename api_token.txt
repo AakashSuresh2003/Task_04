@@ -1,1 +1,0 @@
-{"status":"ok","data":{"tokenName":"your_token_name","tokenUuid":"51f5a29c-3643-445b-9a46-312882a089c5","tokenValue":"11f8e2631460a600cc2d9f054266d2c940"}}

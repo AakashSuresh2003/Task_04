@@ -1,6 +1,0 @@
----
-- import_playbook: user_creation_plugins_install.yml
-- import_playbook: api_creation.yml
-- import_playbook: sonarqube_configuration.yml
-- import_playbook: plugin_configuration.yml
-- import_playbook: job.yml
