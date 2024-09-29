@@ -1,0 +1,81 @@
+- name: Configure Jenkins System credintials
+  hosts: jenkins
+  become: true  # Ensure necessary privileges
+  vars:
+    jenkins_host: "http://{{ ansible_host }}:8080"
+    jenkins_user: "admin"
+
+  tasks:
+
+    - name: Read Jenkins API token from api-token.txt
+      ansible.builtin.slurp:
+        src: /tmp/api_token.txt
+      register: api_token
+
+    - name: Set Jenkins password from decoded token
+      set_fact:
+        jenkins_password: "{{ (api_token.content | b64decode | from_json).data.tokenValue }}"
+
+    - name: Get Jenkins Crumb
+      uri:
+        url: "{{ jenkins_host }}/crumbIssuer/api/json"
+        method: GET
+        user: "{{ jenkins_user }}"
+        password: "{{ jenkins_password }}"
+        force_basic_auth: yes
+        return_content: yes
+      register: jenkins_crumb
+
+    - name: Read SonarQube token from sonar_token.txt
+      ansible.builtin.slurp:
+        src: /tmp/sonarqube_token.txt
+      register: sonar_token
+
+    - name: Set SonarQube auth token from decoded content
+      set_fact:
+        sonar_auth_token: "{{ sonar_token.content | b64decode }}"
+
+    - name: Add SonarQube token to Jenkins credentials store
+      uri:
+        url: "{{ jenkins_host }}/manage/credentials/store/system/domain/_/createCredentials"
+        method: POST
+        user: "{{ jenkins_user }}"
+        password: "{{ jenkins_password }}"
+        force_basic_auth: yes
+        follow_redirects: all
+        headers:
+          Content-Type: "application/x-www-form-urlencoded"
+          Jenkins-Crumb: "{{ jenkins_crumb.json.crumb }}"
+        body: "json={{ {'': '0', 'credentials': { 'scope': 'GLOBAL', 'id': 'sonar-token', 'secret': sonar_auth_token, 'description': 'SonarQube Token', '$class': 'org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl' }} | to_json | urlencode }}"
+        status_code: 200
+
+
+    - name: Ensure Jenkins Groovy initialization directory exists
+      file:
+        path: /var/lib/jenkins/init.groovy.d
+        state: directory
+        mode: '0755'
+
+    - name: Copy Groovy script to Jenkins init directory
+      copy:
+        src: ./configure_jdk.groovy
+        dest: /var/lib/jenkins/init.groovy.d/configure_jdk.groovy
+        owner: jenkins
+        group: jenkins
+        mode: '0644'
+
+    - name: Restart Jenkins to execute init scripts
+      systemd:
+        name: jenkins
+        state: restarted
+
+    - name: Wait for Jenkins to be back up
+      wait_for:
+        port: 8080
+        delay: 10
+        timeout: 60
+        state: started
+
+    - name: Debug successful execution
+      debug:
+        msg: "JDK configuration script executed on Jenkins startup."

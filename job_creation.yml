@@ -1,0 +1,93 @@
+---
+- name: Create and Run Jenkins Job for GitHub Pipeline
+  hosts: jenkins
+  become: yes
+  vars:
+    jenkins_host: "{{ ansible_host }}"
+    jenkins_user: "admin"
+    job_name: "Job"
+    repo_url: "https://github.com/AakashSuresh2003/template.git"
+    branch_name: "*/main"
+  tasks:
+
+    - name: Allow Jenkins user to run sudo without a password
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers
+        state: present
+        line: 'jenkins ALL=(ALL) NOPASSWD:ALL'
+        validate: 'visudo -cf %s'
+
+    - name: Read API token from file
+      slurp:
+        src: /tmp/api_token.txt
+      register: token_file
+
+    - name: Set the API token variable
+      set_fact:
+        api_token: "{{ (token_file.content | b64decode | from_json).data.tokenValue }}"
+
+    - name: Create Jenkins Job with GitHub Hook Trigger for Git SCM Polling
+      uri:
+        url: "http://{{ jenkins_host }}:8080/createItem?name={{ job_name }}"
+        method: POST
+        user: "{{ jenkins_user }}"
+        password: "{{ api_token }}"
+        force_basic_auth: yes
+        headers:
+          Content-Type: "application/xml"
+        body: |
+          <?xml version='1.0' encoding='UTF-8'?>
+          <flow-definition plugin="workflow-job@2.40">
+            <actions/>
+            <description>Pipeline for GitHub repository using Jenkinsfile from SCM</description>
+            <keepDependencies>false</keepDependencies>
+            <properties>
+              <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.29.0">
+                <projectUrl>{{ repo_url }}</projectUrl>
+              </com.coravy.hudson.plugins.github.GithubProjectProperty>
+            </properties>
+            <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps@2.78">
+              <scm class="hudson.plugins.git.GitSCM" plugin="git@4.10.0">
+                <configVersion>2</configVersion>
+                <userRemoteConfigs>
+                  <hudson.plugins.git.UserRemoteConfig>
+                    <url>{{ repo_url }}</url>
+                  </hudson.plugins.git.UserRemoteConfig>
+                </userRemoteConfigs>
+                <branches>
+                  <hudson.plugins.git.BranchSpec>
+                    <name>{{ branch_name }}</name>
+                  </hudson.plugins.git.BranchSpec>
+                </branches>
+                <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+                <submoduleCfg class="list"/>
+                <extensions/>
+              </scm>
+              <scriptPath>Jenkinsfile</scriptPath>
+              <lightweight>true</lightweight>
+            </definition>
+            <triggers>
+              <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.29.0"/>
+            </triggers>
+            <disabled>false</disabled>
+          </flow-definition>
+        status_code: 200
+      register: create_job_result
+
+    - name: Check job creation response
+      debug:
+        var: create_job_result
+
+    - name: Trigger Jenkins Job
+      uri:
+        url: "http://{{ jenkins_host }}:8080/job/{{ job_name }}/build"
+        method: POST
+        user: "{{ jenkins_user }}"
+        password: "{{ api_token }}"
+        force_basic_auth: yes
+        status_code: [201, 202]  # Handle both created and accepted responses
+      register: trigger_job_result
+
+    - name: Check trigger job response
+      debug:
+        var: trigger_job_result
