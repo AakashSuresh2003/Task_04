@@ -4,16 +4,16 @@ provider "aws" {
 
 resource "null_resource" "packer_build" {
   provisioner "local-exec" {
-    command = "packer init . && packer build -machine-readable ../sonarqube-jenkins-image-builder/manual-sonarqube-jenkins.pkr.hcl | tee packer_output.log"
+    command = "cd ../sonarqube-jenkins-image-builder && packer init . && packer build -machine-readable manual-sonarqube-jenkins.pkr.hcl | tee ../packer_output.log"
   }
 
-    triggers = {
-    always_run = "${md5(file("manual-sonarqube-jenkins.pkr.hcl"))}"
-    }
+  triggers = {
+    always_run = "${md5(file("../sonarqube-jenkins-image-builder/manual-sonarqube-jenkins.pkr.hcl"))}"
+  }
 }
 
 data "external" "packer_ami_id" {
-  program = ["bash", "-c", "grep -Eo 'ami-[a-z0-9]+' packer_output.log | tail -1 | jq -R '{ ami_id: . }'"]
+  program = ["bash", "-c", "grep -Eo 'ami-[a-z0-9]+' ../packer_output.log | tail -1 | jq -R '{ ami_id: . }'"]
 
   depends_on = [null_resource.packer_build]
 }

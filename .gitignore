@@ -24,7 +24,7 @@ override.tf.json
 *.tf.json
 tfplan
 .terraform.lock.hcl
-
+packer_output.log
 # Ignore Terraform lock file
 *.tf.lock.hcl
 
