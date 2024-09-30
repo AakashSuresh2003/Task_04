@@ -35,7 +35,28 @@
 
     - name: Install Jenkins Plugins
       command: >
-        java -jar /tmp/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ initial_password }} install-plugin git blueocean sonar email-ext
+        java -jar /tmp/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ initial_password }} install-plugin \
+          cloudbees-folder \
+          antisamy-markup-formatter \
+          build-timeout \
+          credentials-binding \
+          timestamper \
+          ws-cleanup \
+          ant \
+          gradle \
+          workflow-aggregator \
+          github-branch-source \
+          pipeline-github-lib \
+          pipeline-stage-view \
+          git \
+          ssh-slaves \
+          matrix-auth \
+          pam-auth \
+          ldap \
+          email-ext \
+          mailer \
+          sonar
+
 
     - name: Restart Jenkins to apply plugins
       command: >
